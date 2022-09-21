@@ -1,6 +1,7 @@
 # Deep learning mask segmentation using U-net
 Program developed to generate mask images of objects like rock samples and other similar objects photographed in green static background for photogrammetry reconstruction. The script encapsulated in a QT interface uses deep learning U-net semantic segmentation architecture to predict the masks from a folder chosen by the user. The script workflow separate the input images into tiles with 256x256 pixels size, predict the mask for each small tile, and unite the predicted tiles before saving the masks adding "_mask.png" to the saved files.
 
+<img src="https://github.com/ademirmarquesjunior/deep_learning_mask_segmentation/blob/main/images/unet.jpg" width="500" alt="unet">
 <img src="https://github.com/ademirmarquesjunior/deep_learning_mask_segmentation/blob/main/images/image1.png" width="500" alt="Segmented image">
 <img src="https://github.com/ademirmarquesjunior/deep_learning_mask_segmentation/blob/main/images/image2.png" width="500" alt="Segmented image">
 
