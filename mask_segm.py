@@ -29,15 +29,6 @@ from keras.layers import BatchNormalization
 IMG_WIDTH = 256
 IMG_HEIGHT = 256
 IMG_CHANNELS = 3
-temp_tiles_path = 'C:/temp/temp_processed/'
-processed_tiles_path = 'C:/temp/processed_output/'
-
-try:
-    os.makedirs(temp_tiles_path)
-    os.makedirs(processed_tiles_path)
-except:
-    print("Temp folders already exists!")
-
 
 smoothness = 1.0
 # Define IoU metric
@@ -153,11 +144,11 @@ def Unet(inputs = Input((IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS))):
 
 
 
-def convert_img_to_tiles(in_path, input_filename, out_path, output_filename, count):
+def convert_img_to_tiles(in_path, input_filename, count): # in_path, input_filename, out_path, output_filename, count
 
     temp_image = Image.open(os.path.join(in_path, input_filename))
-
-    #temp_image = Image.open('D:/Coding/mask_segmentation/metashape_amostras/original_photos/IMG_4987.JPG')
+    
+    image_tiles = []
 
     IMG_WIDTH, IMG_HEIGHT = 256, 256
 
@@ -181,20 +172,20 @@ def convert_img_to_tiles(in_path, input_filename, out_path, output_filename, cou
             #print(x0,x1, y0,y1)
             tile = image_array[x0:x1, y0:y1]
             grid.append([x0, y0, count])
-            outpath = os.path.join(out_path,output_filename.format(int(count)))
-            Image.fromarray(tile).save(outpath)
+            
+            image_tiles.append(tile)
+
             count+=1
 
-    return count, grid
+    return count, grid, image_tiles
 
 
-def predict_tiles(temp_tiles_path, processed_tiles_path, unet):
-    base_images = [os.path.normpath(i) for i in glob.glob(temp_tiles_path + '******' + '.TIF')]
+def predict_tiles(image_tiles, unet):
     
+    predicted_tiles = []
 
-    for ref in base_images:
-        #image = cv2.imread(ref)
-        image = Image.open(ref)
+    for i in range(np.size(image_tiles)):
+        image = Image.fromarray(image_tiles[i])
         
         
         initial_shape = np.shape(image)
@@ -206,18 +197,20 @@ def predict_tiles(temp_tiles_path, processed_tiles_path, unet):
         
         processed_image = processed_image.resize((initial_shape[1], initial_shape[0]))
         
-        Image.fromarray(np.uint8(processed_image)).save(ref.replace('temp_processed', 'processed_output'))
-        #cv2.imwrite(ref.replace('temp_processed', 'processed_output'), np.uint8(processed_image))
+        predicted_tiles.append(np.uint8(processed_image))
+        
+    return predicted_tiles
 
 
-def merge_tiles(output_file, processed_tiles_path, image_size, grid, count):
+def merge_tiles(output_file, predicted_tiles, image_size, grid, count):
     # output_file = 'mosaic_output.png'
     
     mosaic_output = np.zeros((image_size[0], image_size[1]))
     
     for i in range(0, count):
         # print(i)
-        temp_image = Image.open(processed_tiles_path+'tile_{}.tif'.format(int(i)))
+        # temp_image = Image.open(processed_tiles_path+'tile_{}.tif'.format(int(i)))
+        temp_image = predicted_tiles[i]
         shape = np.shape(temp_image)
         mosaic_output[grid[i][0]:grid[i][0]+shape[0], grid[i][1]:grid[i][1]+shape[1]] = temp_image
 
@@ -236,9 +229,6 @@ class Ui(QtWidgets.QMainWindow):
         self.show()
 
     def init_Ui(self):
-        # self.actionOpen_Image.triggered.connect(self.open_folder)
-        # self.actionOpen_Superpixel_file.triggered.connect(self.open_superpixel)
-
         self.openInputFolder.clicked.connect(lambda: self.open_folder(0))
         self.selectOutputFolder.clicked.connect(lambda: self.open_folder(1))
         self.alignButton.clicked.connect(self.align_photos)
@@ -268,37 +258,19 @@ class Ui(QtWidgets.QMainWindow):
         self.progressBar.setValue(0)
         self.statusBar().showMessage("Processing")
 
-        for image_address in image_list:
-            # image_address = 'G:/1_RawData/IMG_6551.JPG'
-            
+        for image_address in image_list:            
             image_size = np.shape(Image.open(image_address))
-            
-            #in_path = self.input_path
-            # input_filename = image_address
-            output_filename = 'tile_{}.tif'
+
             
             self.statusBar().showMessage("Converting "+image_address+" to tiles.")
-            count, grid = convert_img_to_tiles('', image_address, temp_tiles_path, output_filename, 0)
+            count, grid, image_tiles = convert_img_to_tiles('', image_address, 0)
             
             self.statusBar().showMessage("Predicting mask of "+image_address)    
-            predict_tiles(temp_tiles_path, processed_tiles_path, self.unet)
+            predicted_tiles = predict_tiles(image_tiles, self.unet)
 
-
-            files = glob.glob(temp_tiles_path+"*.*")
-            for f in files:
-                os.remove(f)
-    
-            # output_path = "D:/Coding/mask_segmentation/Nova pasta/Ademir/Amostra 1/Input/Nova pasta" + "/"
-            
             self.statusBar().showMessage("Saving "+image_address[:-4]+"_mask.png"+" into the output folder.")
-            merge_tiles(self.output_path+image_address, processed_tiles_path, image_size, grid, count)
             
-            
-                
-            files = glob.glob(processed_tiles_path+"*.*")
-            for f in files:
-                os.remove(f)
-            
+            merge_tiles(self.output_path+image_address, predicted_tiles, image_size, grid, count)
             
             progress_bar_count += 1
             
